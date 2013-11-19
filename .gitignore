@@ -1,7 +1,6 @@
 # Compiled source #
 ###################
-*.com
-*.class
+bcfun
 *.dll
 *.exe
 *.o

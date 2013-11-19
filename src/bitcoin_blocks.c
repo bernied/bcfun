@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "bitcoin_blocks.h"
+#include "util.h"
 #include "js0n.h"
 
 #define MAP_CHAR(x) ((uint8) (((x) >= '0' && (x) <= '9' ? ((x) - '0') : \
@@ -68,6 +69,38 @@ hex_to_bytes(char* str, int len, uint8* data, int data_len)
 //  printf("\n");
 }
 
+void
+hex_to_bytes_rev(char* str, int len, uint8* data, int data_len)
+{
+  //printf("len=%d\n", len);
+  //assert(len == data_len/2)
+  char c;
+  uint8 u;
+  char *s = str, *e = str + len -1;
+
+  while (e >= s)
+  {
+    c = *e--;
+    u = MAP_CHAR(c);
+//    printf("%x", u);
+    *data = u;
+
+    c = *e--;
+    u = MAP_CHAR(c);
+//    printf("%x", u);
+    *data++ |= (u << 4);
+  }
+//  printf("\n");
+}
+
+int
+parse_int(char* str)
+{
+  int r, i = atoi(str);
+  REVERSE_32(r, i);
+  return r;
+}
+
 int
 parse_bitcoin_block(unsigned char* json, size_t size, block_header* block)
 {
@@ -100,31 +133,31 @@ parse_bitcoin_block(unsigned char* json, size_t size, block_header* block)
           break;
 
         case VERSION:
-          value = atoi(str);
-          block->version = value;
+          value = parse_int(str);
+          REVERSE_32(block->version, value);
           break;
 
         case PREV_BLOCK:
-          hex_to_bytes(str, l, block->prev_block, 256);
+          hex_to_bytes_rev(str, l, block->prev_block, 256);
           break;
 
         case MRKL_ROOT:
-          hex_to_bytes(str, l, block->mrkl_root, 256);
+          hex_to_bytes_rev(str, l, block->mrkl_root, 256);
           break;
 
         case SECS:
-          value = atoi(str);
-          block->time = value;
+          value = parse_int(str);
+          REVERSE_32(block->time, value);
           break;
 
         case BITS:
-          value = atoi(str);
-          block->bits = value;
+          value = parse_int(str);
+          REVERSE_32(block->bits, value);
           break;
 
         case NONCE:
-          value = atoi(str);
-          block->nonce = value;
+          value = parse_int(str);
+          REVERSE_32(block->nonce, value);
           break;
 
         default:
@@ -153,7 +186,7 @@ print_block_header(block_header* h)
     printf("%02x", block[i]);
   }
   printf("\n");
-  printf("%u\n", h->time);
-  printf("%u\n", h->bits);
-  printf("%u\n", h->nonce);
+  printf("%8.0x\n", h->time);
+  printf("%8.0x\n", h->bits);
+  printf("%8.0x\n", h->nonce);
 }

@@ -3,8 +3,9 @@
 
 #include "types.h"
 
-#define BLOCK_SIZE 512
-#define PAD_SIZE (1+64)
+#define BLOCK_SIZE_BYTES 64UL
+#define BLOCK_SIZE_BITS (BLOCK_SIZE_BYTES << 3)
+#define PAD_SIZE_BITS (1+64)
 
 #define RR(x,s) (((x) >> (s)) | ((x) << (32 - (s))))
 #define SR(x,s) ((x) >> (s))
@@ -47,8 +48,8 @@ const static uint32 K[] = {
 
 extern struct arg_t args;
 
-void sha_256_hash(uint32* blocks, uint32 num_blocks, uint32 digest[8], int reverse);
+void sha_256_hash(uint32* blocks, uint32 num_blocks, uint32 digest[8]);
 void create_digest_str(uint8 digest[], char buffer[], const char hex_chars[]);
-void prime_final_block(uint8* blocks, uint32 num_blocks, uint32 size, uint32 last_block_size);
+void prime_final_block(uint8* blocks, uint32 num_blocks, bool pad_blocks, uint32 file_byte_size);
 
 #endif

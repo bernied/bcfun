@@ -2,6 +2,14 @@
 #define __TYPES__
 
 #include <sys/types.h>
+#include <ctype.h>
+
+#ifndef bool
+typedef enum bool_t
+{
+  false = 0, true
+} bool;
+#endif
 
 typedef unsigned char  uint8;
 typedef unsigned short uint16;
