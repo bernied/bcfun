@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "bitcoin_blocks.h"
+#include "sha256.h"
 #include "util.h"
 #include "js0n.h"
 
@@ -170,6 +171,80 @@ parse_bitcoin_block(unsigned char* json, size_t size, block_header* block)
 
   free(res);
   return 0;
+}
+
+// Assumes block_header allocation is 1024 bits
+void
+process_bit_coin_block_inline(block_header* block, uint32* block_digest)
+{
+  uint8 digest[64];
+
+  prime_final_block((uint8*) block, 2, 0, sizeof(block_header));
+  sha_256_hash((uint32*) block, 2, (uint32*) digest);
+  
+  prime_final_block(digest, 1, 0, 32);
+  sha_256_hash((uint32*) digest, 1, block_digest);
+  reverse_bytes((unsigned char*) block_digest, 32);
+}
+
+#ifdef BROKEN
+// this doesn't work yet
+void
+mine_bit_coin_block(block_header* block, unsigned int start, unsigned int end)
+{
+  uint32 mined_block[16];
+  uint32 mined_block_digest[8];
+  block_header* mined_header = (block_header*) mined_block;
+  uint8 digest[64];
+
+  memcpy(block, mined_block, sizeof(block_header));
+  prime_final_block((uint8*) mined_block, 2, 0, sizeof(block_header));
+  prime_final_block(digest, 1, 0, 32);
+  end &= 0x00000000FFFFFFFFUL;
+  for(long i=start; i < end; i++)
+  {
+    mined_header->nonce = (unsigned int) i;
+    sha_256_hash(mined_block, 2, (uint32*) digest); // LAMb: This can be optimized to make one call to hash loop
+    sha_256_hash((uint32*) digest, 1, mined_block_digest);
+    reverse_bytes((unsigned char*) mined_block_digest, 32);
+    printf("nonce=%lu\t", i);
+    print_digest(mined_block_digest, true);
+  }
+}
+#endif
+
+bool
+less_then_bits(uint8* block, int bit_count)
+{
+  for (int i=0; i < bit_count / 8; i++)
+  {
+    if (block[i] != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void
+mine_bit_coin_block(block_header* block, unsigned int start, unsigned int end)
+{
+  uint32 mined_block[32];
+  uint32 mined_block_digest[8];
+  block_header* mined_header = (block_header*) mined_block;
+  uint8 digest[64];
+
+  end &= 0x00000000FFFFFFFFUL;
+  for(long i=start; i < end; i++)
+  {
+    block->nonce = i;
+    memcpy(mined_block, block, sizeof(block_header));
+    process_bit_coin_block_inline((block_header*) mined_block, mined_block_digest);
+    if (less_then_bits((uint8*) mined_block_digest, 32))
+    {
+      printf("nonce=%lu\t", i);
+      print_digest(mined_block_digest, true);
+    }
+  }
 }
 
 void

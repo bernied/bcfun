@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include "parse_cl.h"
 #include "bitcoin_blocks.h"
@@ -14,16 +15,25 @@
 struct arg_t args;
 //const char binary_chars[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
 
+/*
+h / help              flag        "  display this help and exit"
+v / version           flag        "  output version information and exit"
+b / bit-coin          flag        "  treat file as json bitcoin block and double hash it"
+m / mine              flag        "  iterate through all nonces"
+0 / print-binary      int         "  output num bytes as binary"
+x / print-hex         flag        "  print result as hex string (default)"
+*/
 void
 init_default_args(struct arg_t* args)
 {
-  args->h = false;    // display this help and exit
-  args->v = false;    // output version information and exit
-  args->x = false;    // print result in hex string
-  args->b = false;    // print result as binary values
-  args->c = false;    // treat file as json bitcoin block and double hash it
-  args->n = 0;        // if bitcoin then iterate over nonce
-  args->p = 8;        // number of bytes to print
+  args->h = false;
+  args->v = false;
+  args->b = false;
+  args->m = false;
+  args->s = 0;
+  args->e = UINT_MAX;
+  args->_0 = 0;
+  args->x = true;
 }
 
 char*
@@ -39,20 +49,19 @@ handle_arguments(int argc, char** argv, struct arg_t* args)
     printf("sha256 version %s\n", VERSION);
   }
 
-  if (args->x == false && args->b == false) {
-    args->x = true;
+  if (args->_0 != 0) {
+    args->x = false;
   }
-  else if (args->x == true && args->b == true) {
-    fprintf(stderr, "-x and -b can not be used at the same time\n");
+  else if (args->x == true && args->_0 != 0) {
+    fprintf(stderr, "-x and -0 can not be used at the same time\n");
     exit(EXIT_FAILURE);
   }
 
-  if (args->c == false && args->n != 0) {
-    fprintf(stderr, "Set nonce w/o setting bitcoin mode\n");
-    exit(EXIT_FAILURE);
+  if (args->b == false && args->m == true) {
+    args->b = true;
   }
 
-  if (args->p < 1 || args->p > 8) {
+  if (args->_0 < 0 || args->_0 > 8) {
     fprintf(stderr, "number of bytes to print must be betwee 1 and 8\n");
     exit(EXIT_FAILURE);
   }
@@ -63,52 +72,53 @@ handle_arguments(int argc, char** argv, struct arg_t* args)
 int
 sha_256_bc_json(char* file_name, FILE* file, off_t size)
 {
-  int result =0;
+  int result =-1;
   uint32 digest[16];
-  unsigned char* json;
-  block_header* block;
+  unsigned char* json =NULL;
+  uint8* block =NULL;
   uint32 block_digest[8];
 
   json = calloc(size+1, sizeof(unsigned char));
   if (json == NULL) 
   {
     fprintf(stderr, "Unable to allocate memory for json file %s.\n", file_name);
-    exit(EXIT_FAILURE);
+    goto exit;
   }
 
-  block = calloc(1024, sizeof (uint8));
+  block = calloc(128, sizeof(uint8));
   if (block == NULL)
   {
     fprintf(stderr, "Unable to allocate memory for block header.\n");
-    exit(EXIT_FAILURE);
+    goto exit;
   }
 
   size_t len = read_file(file, json, size);
   if (len != size)
   {
     fprintf(stderr, "Failure reading file %s.\n", file_name);
-    exit(EXIT_FAILURE);
+    goto exit;
   }
-  result = parse_bitcoin_block(json, len, block);
-  //print_block_header(block);
 
-  prime_final_block((uint8*) block, 2, 0, sizeof(block_header));
-  sha_256_hash((uint32*) block, 2, digest);
-  //print_digest(digest, args.x);
-  
-  prime_final_block((uint8*) digest, 1, 0, 32);
-  sha_256_hash(digest, 1, block_digest);
-  reverse_bytes((unsigned char*)block_digest, 32);
-  print_digest(block_digest, args.x);
+  result = parse_bitcoin_block(json, len, (block_header*) block);
+  if (args.m) {
+    mine_bit_coin_block((block_header*) block, args.s, args.e);
+  }
+  else {
+   process_bit_coin_block_inline((block_header*) block, block_digest);
+   print_digest(block_digest, args.x);
+  }
+  result = 0;
 
-  free(json);
+exit:
+  if (json) free(json);
+  if (block) free(block);
   return result;
 }
 
 int
 sha_256_file(char* file_name, FILE* file, off_t size)
 {
-  int result;
+  int result =-1;
   uint32 digest[8];
 
   // Initialize 512 bit blocks for processing
@@ -118,7 +128,7 @@ sha_256_file(char* file_name, FILE* file, off_t size)
   if (blocks == NULL) 
   {
     fprintf(stderr, "Unable to allocate memory for blocks from file %s.\n", file_name);
-    exit(EXIT_FAILURE);
+    goto exit;
   }
 
   // Load up block data
@@ -126,7 +136,7 @@ sha_256_file(char* file_name, FILE* file, off_t size)
   if (total_bytes != size)
   {
     fprintf(stderr, "Unable to read entire file %s.\n", file_name);
-    exit(EXIT_FAILURE);
+    goto exit;
   }
 
   // Set up final block
@@ -135,8 +145,10 @@ sha_256_file(char* file_name, FILE* file, off_t size)
   // Calculate and print the sha-256 digest of the incoming data
   sha_256_hash(blocks, num_blocks + num_pad_blocks, digest);
   print_digest(digest, args.x);
+  result = 0;
 
-  free(blocks);
+exit:
+  if (blocks) free(blocks);
   return result;
 }
 
@@ -165,7 +177,7 @@ main(int argc, char** argv)
     exit(EXIT_FAILURE);
   }
 
-  if (args.c) {
+  if (args.b) {
     result = sha_256_bc_json(file_name, file, size);
   }
   else {

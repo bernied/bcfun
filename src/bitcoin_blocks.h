@@ -28,6 +28,8 @@ typedef struct block_header
 extern char* tokens[NUM_TOKENS];
 
 extern int parse_bitcoin_block(unsigned char* json, size_t size, block_header* block);
+extern void process_bit_coin_block_inline(block_header* block, uint32* block_digest);
+extern void mine_bit_coin_block(block_header* block, unsigned int start, unsigned int end);
 extern void print_block_header(block_header* h);
 
 #endif
